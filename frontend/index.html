@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartSpend – Expense Tracking</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        animation: { 'slide-up': 'slideUp 0.3s ease-out forwards', 'fade-in': 'fadeIn 0.4s ease-out forwards' },
+        keyframes: {
+          slideUp: { '0%': { transform:'translateY(20px)',opacity:'0' }, '100%': { transform:'translateY(0)',opacity:'1' } },
+          fadeIn:  { '0%': { opacity:'0',transform:'translateY(4px)' }, '100%': { opacity:'1',transform:'translateY(0)' } }
+        }
+      }}
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:8px; }
+    .dark ::-webkit-scrollbar-thumb { background:#475569; }
+    .hidden-view { display:none !important; }
+    .nav-link.active { background:rgba(16,185,129,0.12); color:#34d399; }
+    .row-enter { animation:fadeIn 0.35s ease-out forwards; }
+    .spinner { width:18px;height:18px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    /* Currency selector */
+    #currency-dropdown { min-width:120px; }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 min-h-screen font-medium transition-colors duration-300">
+
+<div id="toast-container" class="fixed bottom-6 right-6 z-[200] flex flex-col gap-2 pointer-events-none"></div>
+
+<!-- ══ AUTH LAYOUT ══ -->
+<div id="auth-layout" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+  <div class="absolute inset-0 opacity-30 pointer-events-none" style="background-image:radial-gradient(#10b981 1px,transparent 1px);background-size:30px 30px;"></div>
+
+  <!-- Login -->
+  <div id="view-login" class="relative w-full max-w-md m-4 p-8 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-100 dark:border-slate-700 z-10">
+    <div class="text-center mb-8">
+      <div class="flex justify-center items-center gap-2 mb-2">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center text-white">
+          <iconify-icon icon="solar:wallet-linear" width="20"></iconify-icon>
+        </div>
+        <span class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">SmartSpend</span>
+      </div>
+      <p class="text-sm text-slate-500 dark:text-slate-400">Smart Expense Tracking · Default Currency: ₹ INR</p>
+    </div>
+    <form onsubmit="event.preventDefault(); loginUser();" class="space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Email address</label>
+        <input type="email" id="login-email" autocomplete="email" value="admin@smartspend.com"
+          class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" />
+      </div>
+      <div>
+        <input type="password" id="login-password" autocomplete="current-password" value="Admin@123" placeholder="Password"
+          class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" />
+      </div>
+      <p id="login-error" class="text-xs text-red-500 hidden"></p>
+      <button type="submit" id="login-btn"
+        class="w-full mt-2 inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors">
+        Sign in to account
+      </button>
+    </form>
+    <p class="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+      Don't have an account? <a href="#" onclick="showAuthView('register')" class="font-medium text-emerald-600 hover:text-emerald-500">Register</a>
+    </p>
+  </div>
+
+  <!-- Register -->
+  <div id="view-register" class="hidden-view relative w-full max-w-md m-4 p-8 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-100 dark:border-slate-700 z-10">
+    <div class="text-center mb-8">
+      <div class="flex justify-center items-center gap-2 mb-2">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center text-white">
+          <iconify-icon icon="solar:wallet-linear" width="20"></iconify-icon>
+        </div>
+        <span class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">SmartSpend</span>
+      </div>
+      <p class="text-sm text-slate-500 dark:text-slate-400">Create your account</p>
+    </div>
+    <form onsubmit="event.preventDefault(); registerUser();" class="space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+        <input type="text" id="reg-name" autocomplete="name" placeholder="Alex Carter"
+          class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" required />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Email address</label>
+        <input type="email" id="reg-email" autocomplete="email" placeholder="you@example.com"
+          class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" required />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Password</label>
+        <input type="password" id="reg-password" autocomplete="new-password" placeholder="Min. 6 characters"
+          class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" required minlength="6" />
+      </div>
+      <p id="reg-error" class="text-xs text-red-500 hidden"></p>
+      <button type="submit" id="reg-btn"
+        class="w-full mt-2 inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors">
+        Create account
+      </button>
+    </form>
+    <p class="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+      Already have an account? <a href="#" onclick="showAuthView('login')" class="font-medium text-emerald-600 hover:text-emerald-500">Sign in</a>
+    </p>
+  </div>
+</div>
+
+<!-- ══ MAIN APP LAYOUT ══ -->
+<div id="app-layout" class="hidden-view flex h-screen overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="w-64 flex-shrink-0 bg-slate-900 text-slate-400 flex flex-col h-full border-r border-slate-800 fixed md:relative z-40 -translate-x-full md:translate-x-0 transition-transform duration-300">
+    <div class="h-16 flex items-center px-6 border-b border-slate-800">
+      <div class="flex items-center gap-2 text-white">
+        <iconify-icon icon="solar:wallet-linear" width="22" class="text-emerald-500"></iconify-icon>
+        <span class="text-xl font-semibold tracking-tight">SmartSpend</span>
+      </div>
+      <button onclick="toggleSidebar()" class="ml-auto md:hidden text-slate-400 hover:text-white">
+        <iconify-icon icon="solar:close-circle-linear" width="24"></iconify-icon>
+      </button>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 px-3 pt-2 pb-2">Menu</p>
+      <a href="#" onclick="navigateTo('dashboard')" data-nav="dashboard" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white transition-all">
+        <iconify-icon icon="solar:widget-linear" width="20"></iconify-icon> Dashboard
+      </a>
+      <a href="#" onclick="navigateTo('add-expense')" data-nav="add-expense" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white transition-all">
+        <iconify-icon icon="solar:add-circle-linear" width="20"></iconify-icon> Add Expense
+      </a>
+      <a href="#" onclick="navigateTo('expenses')" data-nav="expenses" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white transition-all">
+        <iconify-icon icon="solar:list-linear" width="20"></iconify-icon> Expenses
+      </a>
+      <a href="#" onclick="navigateTo('budget')" data-nav="budget" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white transition-all">
+        <iconify-icon icon="solar:pie-chart-2-linear" width="20"></iconify-icon> Budget
+      </a>
+      <a href="#" onclick="navigateTo('reports')" data-nav="reports" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white transition-all">
+        <iconify-icon icon="solar:document-text-linear" width="20"></iconify-icon> Reports
+      </a>
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 px-3 pt-4 pb-2">Tools</p>
+      <a href="#" onclick="navigateTo('currency')" data-nav="currency" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white transition-all">
+        <iconify-icon icon="solar:calculator-minimalistic-linear" width="20"></iconify-icon> Currency Converter
+      </a>
+      <a href="#" onclick="navigateTo('health')" data-nav="health" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white transition-all">
+        <iconify-icon icon="solar:heart-pulse-linear" width="20"></iconify-icon> Financial Health
+      </a>
+      <div id="admin-menu" class="hidden">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 px-3 pt-4 pb-2">System</p>
+        <a href="#" onclick="navigateTo('admin')" data-nav="admin" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white transition-all">
+          <iconify-icon icon="solar:shield-keyhole-linear" width="20"></iconify-icon> Admin Dashboard
+        </a>
+      </div>
+    </nav>
+    <div class="p-4 border-t border-slate-800">
+      <div class="flex items-center gap-3 px-3 py-2 mb-1">
+        <div id="user-avatar" class="w-8 h-8 rounded-full bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">?</div>
+        <div class="min-w-0">
+          <p id="user-name-display" class="text-sm font-medium text-white truncate">Loading…</p>
+          <p id="user-role-display" class="text-xs text-slate-400 truncate">User</p>
+        </div>
+      </div>
+      <a href="#" onclick="logout()" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors">
+        <iconify-icon icon="solar:logout-2-linear" width="20"></iconify-icon> Logout
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="flex-1 flex flex-col h-full overflow-hidden">
+    <!-- Topbar -->
+    <header class="h-16 flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700 flex items-center px-4 sm:px-6 gap-3">
+      <button onclick="toggleSidebar()" class="md:hidden text-slate-500 hover:text-slate-900 dark:hover:text-white">
+        <iconify-icon icon="solar:hamburger-menu-linear" width="24"></iconify-icon>
+      </button>
+      <h1 id="page-title" class="text-base font-semibold text-slate-900 dark:text-white">Dashboard</h1>
+      <div class="ml-auto flex items-center gap-2">
+
+        <!-- ── CURRENCY SELECTOR ── -->
+        <div class="relative">
+          <button id="currency-btn" onclick="toggleCurrencyMenu()"
+            class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">
+            <span id="currency-btn-symbol">₹</span>
+            <span id="currency-btn-code">INR</span>
+            <iconify-icon icon="solar:alt-arrow-down-linear" width="14" class="text-slate-400"></iconify-icon>
+          </button>
+          <div id="currency-dropdown"
+            class="hidden absolute right-0 top-11 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-xl overflow-hidden py-1">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <!-- Theme toggle -->
+        <button onclick="toggleDark()" class="w-9 h-9 rounded-lg border border-gray-200 dark:border-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+          <iconify-icon id="theme-icon" icon="solar:moon-linear" width="18"></iconify-icon>
+        </button>
+
+        <!-- Avatar -->
+        <div id="topbar-avatar" class="w-9 h-9 rounded-full bg-emerald-500 text-white text-sm font-semibold flex items-center justify-center cursor-pointer">?</div>
+      </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6">
+
+      <!-- ═══ DASHBOARD ═══ -->
+      <div id="page-dashboard" class="page-view hidden-view space-y-6">
+        <!-- Stats cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Income</p>
+              <div class="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center">
+                <iconify-icon icon="solar:wallet-money-linear" width="18" class="text-emerald-500"></iconify-icon>
+              </div>
+            </div>
+            <p id="stat-income" class="text-2xl font-bold text-slate-900 dark:text-white">₹0</p>
+            <p class="text-xs text-slate-400 mt-1">Monthly income</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Expenses</p>
+              <div class="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-500/10 flex items-center justify-center">
+                <iconify-icon icon="solar:card-send-linear" width="18" class="text-red-500"></iconify-icon>
+              </div>
+            </div>
+            <p id="stat-expenses" class="text-2xl font-bold text-slate-900 dark:text-white">₹0</p>
+            <p class="text-xs text-slate-400 mt-1">This month</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Savings</p>
+              <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
+                <iconify-icon icon="solar:piggy-bank-linear" width="18" class="text-blue-500"></iconify-icon>
+              </div>
+            </div>
+            <p id="stat-savings" class="text-2xl font-bold text-slate-900 dark:text-white">₹0</p>
+            <p class="text-xs text-slate-400 mt-1">Income minus expenses</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Budget Left</p>
+              <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+                <iconify-icon icon="solar:pie-chart-2-linear" width="18" class="text-amber-500"></iconify-icon>
+              </div>
+            </div>
+            <p id="stat-budget-remaining" class="text-2xl font-bold text-slate-900 dark:text-white">₹0</p>
+            <div class="mt-2 h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div id="stat-budget-bar" class="h-1.5 rounded-full bg-emerald-500 transition-all duration-700" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Budget Alert -->
+        <div id="budget-alert" class="hidden rounded-xl p-4 flex items-center gap-3 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">
+          <iconify-icon icon="solar:danger-triangle-linear" width="22"></iconify-icon>
+          <p id="budget-alert-msg" class="text-sm font-medium"></p>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Monthly Spending Trend</h3>
+                <p id="trend-chart-currency-label" class="text-xs text-slate-400 mt-0.5">Last 6 months · Values in ₹ INR</p>
+              </div>
+              <iconify-icon icon="solar:chart-linear" width="20" class="text-emerald-500"></iconify-icon>
+            </div>
+            <div class="relative h-48"><canvas id="trend-chart-canvas"></canvas></div>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Expenses by Category</h3>
+              <iconify-icon icon="solar:pie-chart-linear" width="20" class="text-emerald-500"></iconify-icon>
+            </div>
+            <div class="relative h-36 flex items-center justify-center mb-4">
+              <canvas id="donut-chart-canvas"></canvas>
+              <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <p id="donut-total" class="text-lg font-bold text-slate-900 dark:text-white">₹0</p>
+                <p class="text-xs text-slate-400">Total</p>
+              </div>
+            </div>
+            <div id="donut-legends" class="space-y-1.5 text-xs"></div>
+          </div>
+        </div>
+
+        <!-- Settings + Insights -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">Income &amp; Budget Settings</h3>
+            <p class="text-xs text-slate-400 mb-4">Values stored in INR (base currency). Displayed in selected currency.</p>
+            <div class="space-y-3">
+              <div>
+                <label id="income-label" class="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1 block">Monthly Income (₹ INR)</label>
+                <input type="number" id="budget-income-input" min="0" placeholder="e.g. 50000"
+                  class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" />
+              </div>
+              <div>
+                <label id="budget-label" class="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1 block">Monthly Budget Limit (₹ INR)</label>
+                <input type="number" id="budget-limit-input" min="0" placeholder="e.g. 30000"
+                  class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" />
+              </div>
+              <button onclick="saveSettings()" id="save-settings-btn"
+                class="w-full rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60 transition-colors">
+                Save Settings
+              </button>
+            </div>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <div class="flex items-center gap-2 mb-4">
+              <iconify-icon icon="solar:lightbulb-linear" width="18" class="text-amber-500"></iconify-icon>
+              <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Smart Insights</h3>
+            </div>
+            <div id="insights-list" class="space-y-2 text-sm text-slate-500 dark:text-slate-400">
+              <p class="text-xs">Add expenses to see personalized insights.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ ADD EXPENSE ═══ -->
+      <div id="page-add-expense" class="page-view hidden-view max-w-xl mx-auto">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-6 border border-gray-100 dark:border-slate-700 shadow-sm">
+          <h2 id="expense-form-title" class="text-base font-semibold text-slate-900 dark:text-white mb-5">Add New Expense</h2>
+          <form onsubmit="event.preventDefault(); saveExpense();" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label id="expense-amount-label" class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Amount (₹ INR) *</label>
+                <input type="number" id="expense-amount" step="0.01" min="0.01" placeholder="0.00" required
+                  class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" />
+                <p id="expense-amount-hint" class="text-xs text-slate-400 mt-1 hidden"></p>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Date *</label>
+                <input type="date" id="expense-date" required
+                  class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Category *</label>
+              <select id="expense-category" required
+                class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white">
+                <option value="">Select category…</option>
+                <option>Housing</option><option>Food &amp; Dining</option><option>Transportation</option><option>miscellaneous</option>
+                <option>Utilities</option><option>Entertainment</option><option>Healthcare</option><option>Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Description *</label>
+              <input type="text" id="expense-description" placeholder="e.g. Grocery shopping" required minlength="2" maxlength="200"
+                class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Notes (optional)</label>
+              <textarea id="expense-notes" rows="2" placeholder="Additional details…" maxlength="500"
+                class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white resize-none"></textarea>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button type="button" onclick="resetForm(); navigateTo('expenses');"
+                class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">
+                Cancel
+              </button>
+              <button type="submit" id="save-expense-btn"
+                class="flex-1 inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60 transition-colors">
+                Save Expense
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- ═══ EXPENSES ═══ -->
+      <div id="page-expenses" class="page-view hidden-view space-y-4">
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input type="text" id="search-input" placeholder="Search expenses…" oninput="filterExpenses()"
+            class="flex-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white" />
+          <select id="filter-category" onchange="filterExpenses()"
+            class="rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-emerald-500 text-slate-900 dark:text-white">
+            <option value="">All Categories</option>
+            <option>Housing</option><option>Food &amp; Dining</option><option>Transportation</option><option>miscellaneous</option>
+            <option>Utilities</option><option>Entertainment</option><option>Healthcare</option><option>Other</option>
+          </select>
+          <input type="month" id="filter-month" onchange="filterExpenses()"
+            class="rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-emerald-500 text-slate-900 dark:text-white" />
+          <button onclick="navigateTo('add-expense')"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-sm font-semibold text-white hover:bg-emerald-600 transition-colors">
+            <iconify-icon icon="solar:add-circle-linear" width="16"></iconify-icon> Add
+          </button>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 dark:bg-slate-700/50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <tr>
+                  <th class="px-4 py-3 text-left">Date</th>
+                  <th class="px-4 py-3 text-left">Description</th>
+                  <th class="px-4 py-3 text-left">Category</th>
+                  <th class="px-4 py-3 text-right" id="expenses-amount-header">Amount (₹ INR)</th>
+                  <th class="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="expenses-tbody">
+                <tr><td colspan="5" class="px-4 py-10 text-center text-slate-400 text-sm">Loading expenses…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ BUDGET ═══ -->
+      <div id="page-budget" class="page-view hidden-view space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <label class="text-sm font-medium text-slate-600 dark:text-slate-300">Month:</label>
+            <input type="month" id="budget-month-filter" onchange="loadBudgets()"
+              class="rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm outline-none focus:border-emerald-500 text-slate-900 dark:text-white" />
+          </div>
+          <button onclick="showBudgetForm()"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-sm font-semibold text-white hover:bg-emerald-600 transition-colors">
+            <iconify-icon icon="solar:add-circle-linear" width="16"></iconify-icon> Set Budget
+          </button>
+        </div>
+        <div id="budget-form-panel" class="hidden bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">Set Category Budget</h3>
+          <p id="budget-form-note" class="text-xs text-slate-400 mb-3">Enter limit in INR (₹). Displayed in selected currency.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <select id="budget-cat"
+              class="rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 text-slate-900 dark:text-white">
+              <option value="">Select category…</option>
+              <option>Housing</option><option>Food &amp; Dining</option><option>Transportation</option>
+              <option>Utilities</option><option>Entertainment</option><option>Healthcare</option><option>Other</option>
+            </select>
+            <input type="number" id="budget-limit" min="1" placeholder="Limit in ₹ INR"
+              class="rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 text-slate-900 dark:text-white" />
+            <button onclick="saveBudget()" id="save-budget-btn"
+              class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60 transition-colors">
+              Save Budget
+            </button>
+          </div>
+        </div>
+        <div id="budget-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="col-span-full text-center py-12 text-slate-400 text-sm">Loading budgets…</div>
+        </div>
+      </div>
+
+      <!-- ═══ REPORTS ═══ -->
+      <div id="page-reports" class="page-view hidden-view space-y-4">
+        <!-- Controls bar -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <input type="month" id="report-month-filter" onchange="loadReports()"
+            class="rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm outline-none focus:border-emerald-500 text-slate-900 dark:text-white" />
+          <button onclick="loadReports()"
+            class="px-4 py-2 rounded-lg bg-emerald-500 text-sm font-semibold text-white hover:bg-emerald-600 transition-colors">
+            Load Report
+          </button>
+          <!-- Download buttons -->
+          <div class="flex gap-2 sm:ml-auto">
+            <button onclick="downloadReport('csv')" id="download-csv-btn"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-500 text-emerald-600 dark:text-emerald-400 text-sm font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-500/10 disabled:opacity-60 transition-colors">
+              <iconify-icon icon="solar:download-linear" width="16"></iconify-icon>
+              Download CSV
+            </button>
+            <button onclick="downloadReport('json')" id="download-json-btn"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-60 transition-colors">
+              <iconify-icon icon="solar:file-text-linear" width="16"></iconify-icon>
+              Download JSON
+            </button>
+          </div>
+        </div>
+
+        <!-- Summary stats -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <p class="text-xs text-slate-400 mb-1">Total Expenses</p>
+            <p id="rpt-total" class="text-xl font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <p class="text-xs text-slate-400 mb-1">Avg. per Transaction</p>
+            <p id="rpt-avg" class="text-xl font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <p class="text-xs text-slate-400 mb-1">Transactions</p>
+            <p id="rpt-count" class="text-xl font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <p class="text-xs text-slate-400 mb-1">vs Last Month</p>
+            <p id="rpt-vs" class="text-xl font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+        </div>
+
+        <!-- Daily chart -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-4">
+            Daily Spending — <span id="rpt-month-label"></span>
+          </h3>
+          <div class="relative h-52"><canvas id="report-chart-canvas"></canvas></div>
+        </div>
+
+        <!-- Category breakdown -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-4">Category Breakdown</h3>
+          <div id="report-category-table" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <!-- ═══ CURRENCY CONVERTER ═══ -->
+      <div id="page-currency" class="page-view hidden-view max-w-md mx-auto">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-6 border border-gray-100 dark:border-slate-700 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white mb-5">Currency Converter</h2>
+          <div class="space-y-4">
+            <div>
+              <label class="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1 block">Amount</label>
+              <input type="number" id="cc-amount" value="1000" min="0.01" step="0.01"
+                class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 text-slate-900 dark:text-white" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1 block">From</label>
+                <select id="cc-from" class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 text-slate-900 dark:text-white">
+                  <option value="INR" selected>₹ INR</option><option value="USD">$ USD</option><option value="EUR">€ EUR</option>
+                  <option value="GBP">£ GBP</option><option value="JPY">¥ JPY</option><option value="CAD">C$ CAD</option>
+                  <option value="AUD">A$ AUD</option><option value="CHF">Fr CHF</option><option value="CNY">¥ CNY</option>
+                  <option value="MXN">$ MXN</option><option value="SGD">S$ SGD</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1 block">To</label>
+                <select id="cc-to" class="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 text-slate-900 dark:text-white">
+                  <option value="INR">₹ INR</option><option value="USD" selected>$ USD</option><option value="EUR">€ EUR</option>
+                  <option value="GBP">£ GBP</option><option value="JPY">¥ JPY</option><option value="CAD">C$ CAD</option>
+                  <option value="AUD">A$ AUD</option><option value="CHF">Fr CHF</option><option value="CNY">¥ CNY</option>
+                  <option value="MXN">$ MXN</option><option value="SGD">S$ SGD</option>
+                </select>
+              </div>
+            </div>
+            <button onclick="convertCurrency()" id="cc-btn"
+              class="w-full rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60 transition-colors">
+              Convert
+            </button>
+            <div id="cc-result" class="hidden rounded-lg bg-emerald-50 dark:bg-emerald-500/10 p-4 text-center">
+              <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400" id="cc-result-value"></p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" id="cc-result-rate"></p>
+            </div>
+          </div>
+        </div>
+        <!-- Exchange rates table -->
+        <div class="mt-4 bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">Live Exchange Rates (Base: ₹ INR)</h3>
+          <div id="rates-table" class="space-y-2 text-sm"></div>
+        </div>
+      </div>
+
+      <!-- ═══ FINANCIAL HEALTH ═══ -->
+      <div id="page-health" class="page-view hidden-view max-w-2xl mx-auto space-y-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-6 border border-gray-100 dark:border-slate-700 shadow-sm text-center">
+          <p class="text-sm text-slate-400 mb-2">Financial Health Score</p>
+          <p id="health-score" class="text-6xl font-bold text-emerald-500">—</p>
+          <p id="health-grade" class="text-base font-semibold text-slate-600 dark:text-slate-300 mt-1">—</p>
+        </div>
+        <div id="health-components" class="grid grid-cols-2 gap-4"></div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">Tips</h3>
+          <ul id="health-tips" class="space-y-2 text-sm text-slate-500 dark:text-slate-400 list-disc list-inside"></ul>
+        </div>
+      </div>
+
+      <!-- ═══ ADMIN ═══ -->
+      <div id="page-admin" class="page-view hidden-view space-y-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <p class="text-xs text-slate-400 mb-1">Total Users</p>
+            <p id="admin-users" class="text-2xl font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <p class="text-xs text-slate-400 mb-1">Total Expenses</p>
+            <p id="admin-expenses" class="text-2xl font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <p class="text-xs text-slate-400 mb-1">Total Tracked</p>
+            <p id="admin-amount" class="text-2xl font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+            <p class="text-xs text-slate-400 mb-1">Uptime (s)</p>
+            <p id="admin-uptime" class="text-2xl font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-4">System Settings</h3>
+          <button onclick="toggleMaintenance()" class="px-4 py-2 rounded-lg bg-red-500 text-sm font-semibold text-white hover:bg-red-600 transition-colors">Toggle Maintenance Mode</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div id="delete-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+  <div class="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-sm mx-4 shadow-2xl border border-gray-100 dark:border-slate-700">
+    <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-2">Delete Expense</h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mb-5">Are you sure? This cannot be undone.</p>
+    <div class="flex gap-3">
+      <button onclick="closeDeleteModal()" class="flex-1 px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">Cancel</button>
+      <button onclick="confirmDelete()" class="flex-1 px-4 py-2 rounded-lg bg-red-500 text-sm font-semibold text-white hover:bg-red-600 transition-colors">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+//  SmartSpend v3.0 — Multi-Currency + Report Download
+//  Default currency: INR (₹). All data stored in INR.
+//  Display conversion is client-side using exchange rates from API.
+// ════════════════════════════════════════════════════════════════
+
+const API_BASE = 'http://localhost:3001/api';
+
+// ── State ─────────────────────────────────────────────────────
+let currentUser = null;
+let expenses = [];
+let currentEditId = null;
+let pendingDeleteId = null;
+let _isRefreshing = false;
+
+// Chart instances
+let trendChartInstance = null;
+let donutChartInstance = null;
+let reportChartInstance = null;
+
+// ── Currency System ───────────────────────────────────────────
+// All amounts are stored in INR on the backend.
+// selectedCurrency controls display-only conversion.
+const CURRENCIES = {
+  INR: { symbol: '₹', name: 'Indian Rupee',     flag: '🇮🇳' },
+  USD: { symbol: '$', name: 'US Dollar',          flag: '🇺🇸' },
+  EUR: { symbol: '€', name: 'Euro',               flag: '🇪🇺' },
+  GBP: { symbol: '£', name: 'British Pound',      flag: '🇬🇧' },
+  JPY: { symbol: '¥', name: 'Japanese Yen',       flag: '🇯🇵' },
+  CAD: { symbol: 'C$',name: 'Canadian Dollar',    flag: '🇨🇦' },
+  AUD: { symbol: 'A$',name: 'Australian Dollar',  flag: '🇦🇺' },
+  SGD: { symbol: 'S$',name: 'Singapore Dollar',   flag: '🇸🇬' },
+  CHF: { symbol: 'Fr',name: 'Swiss Franc',        flag: '🇨🇭' },
+  CNY: { symbol: '¥', name: 'Chinese Yuan',       flag: '🇨🇳' },
+};
+
+// Fallback rates (INR base — i.e. 1 INR = X foreign)
+// These match the backend static rates inverted from USD base
+const FALLBACK_RATES_FROM_INR = {
+  INR: 1,
+  USD: 0.01203,
+  EUR: 0.01107,
+  GBP: 0.00949,
+  JPY: 1.7985,
+  CAD: 0.01640,
+  AUD: 0.01843,
+  SGD: 0.01621,
+  CHF: 0.01081,
+  CNY: 0.08706,
+};
+
+let exchangeRatesFromINR = { ...FALLBACK_RATES_FROM_INR };
+let selectedCurrency = localStorage.getItem('ss_currency') || 'INR';
+let ratesLoaded = false;
+
+function getSymbol(code) { return (CURRENCIES[code] || {}).symbol || code; }
+
+// Convert INR amount → selected currency for display
+function convertFromINR(amountINR, toCurrency) {
+  const code = toCurrency || selectedCurrency;
+  const rate = exchangeRatesFromINR[code] || 1;
+  return amountINR * rate;
+}
+
+// Format value already in selected currency
+function fmt(inrValue) {
+  const converted = convertFromINR(inrValue);
+  const code = selectedCurrency;
+  const sym = getSymbol(code);
+  // Suppress decimals for JPY
+  const decimals = ['JPY'].includes(code) ? 0 : 2;
+  return `${sym}${Number(converted.toFixed(decimals)).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+}
+
+// Load exchange rates from backend, then refresh UI
+async function loadExchangeRates() {
+  try {
+    const data = await apiFetch('/currency/rates');
+    if (data && data.rates) {
+      // Backend returns USD-base rates. Convert to INR-base.
+      // rate[X] = 1 USD = X units. INR rate = data.rates.INR
+      const inrPerUSD = data.rates.INR || 83.12;
+      const newRates = { INR: 1 };
+      for (const [code, usdRate] of Object.entries(data.rates)) {
+        if (code !== 'INR') {
+          // 1 INR = (usdRate / inrPerUSD) code units
+          newRates[code] = usdRate / inrPerUSD;
+        }
+      }
+      exchangeRatesFromINR = newRates;
+      ratesLoaded = true;
+    }
+  } catch (_) { /* use fallback */ }
+}
+
+// ── Currency Selector UI ──────────────────────────────────────
+function buildCurrencyDropdown() {
+  const dropdown = document.getElementById('currency-dropdown');
+  dropdown.innerHTML = Object.entries(CURRENCIES).map(([code, info]) => `
+    <button onclick="selectCurrency('${code}')"
+      class="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${selectedCurrency === code ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-700 dark:text-slate-200'}">
+      <span class="text-base">${info.flag}</span>
+      <span class="font-medium">${info.symbol}</span>
+      <span>${code}</span>
+      <span class="ml-auto text-xs text-slate-400">${info.name}</span>
+    </button>`).join('');
+}
+
+function toggleCurrencyMenu() {
+  buildCurrencyDropdown();
+  const dd = document.getElementById('currency-dropdown');
+  dd.classList.toggle('hidden');
+  // Close on outside click
+  setTimeout(() => {
+    const close = (e) => {
+      if (!dd.contains(e.target) && !document.getElementById('currency-btn').contains(e.target)) {
+        dd.classList.add('hidden');
+        document.removeEventListener('click', close);
+      }
+    };
+    document.addEventListener('click', close);
+  }, 10);
+}
+
+function selectCurrency(code) {
+  selectedCurrency = code;
+  localStorage.setItem('ss_currency', code);
+  document.getElementById('currency-dropdown').classList.add('hidden');
+  // Update topbar button
+  document.getElementById('currency-btn-symbol').textContent = getSymbol(code);
+  document.getElementById('currency-btn-code').textContent = code;
+  // Refresh all displayed values
+  refreshAllCurrencyDisplays();
+}
+
+function refreshAllCurrencyDisplays() {
+  // Update expense amount label
+  const lbl = document.getElementById('expense-amount-label');
+  if (lbl) lbl.textContent = `Amount (₹ INR) *`;
+  // Update settings labels
+  const il = document.getElementById('income-label');
+  if (il) il.textContent = 'Monthly Income (₹ INR — stored base)';
+  // Update expenses table header
+  const eh = document.getElementById('expenses-amount-header');
+  if (eh) eh.textContent = `Amount (${getSymbol(selectedCurrency)} ${selectedCurrency})`;
+  // Update trend chart subtitle
+  const tl = document.getElementById('trend-chart-currency-label');
+  if (tl) tl.textContent = `Last 6 months · Values in ${getSymbol(selectedCurrency)} ${selectedCurrency}`;
+  // Re-render charts and tables (they use fmt() which auto-converts)
+  if (trendChartInstance && trendChartInstance._monthData) updateTrendChart(trendChartInstance._monthData);
+  if (donutChartInstance && donutChartInstance._catData) updateDonutChart(donutChartInstance._catData, donutChartInstance._totalData);
+  // Re-render dashboard stats if data available
+  if (window._lastSummary) updateDashboardStats(window._lastSummary);
+  // Re-render expenses table
+  renderExpensesTable();
+  // Re-render budget cards
+  if (window._lastBudgets) renderBudgetCards(window._lastBudgets);
+  // Re-render report if loaded
+  if (window._lastReportData) {
+    document.getElementById('rpt-total').textContent = fmt(window._lastReportData.totalExpenses);
+    document.getElementById('rpt-avg').textContent = fmt(window._lastReportData.avgPerTransaction);
+    renderCategoryTable(window._lastReportData.byCategory || [], window._lastReportData.totalExpenses || 0);
+    if (reportChartInstance && window._lastReportData.daily) renderReportChart(window._lastReportData.daily);
+  }
+}
+
+// ── Token Management ──────────────────────────────────────────
+const Token = {
+  getAccess:  () => localStorage.getItem('ss_access'),
+  getRefresh: () => localStorage.getItem('ss_refresh'),
+  set(a, r) { localStorage.setItem('ss_access', a); if (r) localStorage.setItem('ss_refresh', r); },
+  clear() { ['ss_access','ss_refresh','ss_user'].forEach(k => localStorage.removeItem(k)); },
+  getUser() { try { return JSON.parse(localStorage.getItem('ss_user') || 'null'); } catch { return null; } },
+  setUser(u) { localStorage.setItem('ss_user', JSON.stringify(u)); }
+};
+
+// ── API Fetch ─────────────────────────────────────────────────
+async function apiFetch(path, options = {}, _retry = true) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = Token.getAccess();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  } catch (e) {
+    throw new Error('Cannot reach server. Is the backend running on port 3001?');
+  }
+  if (res.status === 401 && _retry && !_isRefreshing) {
+    _isRefreshing = true;
+    try {
+      const rRes = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: Token.getRefresh() })
+      });
+      if (rRes.ok) {
+        const rData = await rRes.json();
+        Token.set(rData.accessToken, rData.refreshToken);
+        _isRefreshing = false;
+        return apiFetch(path, options, false);
+      }
+    } catch (_) {}
+    _isRefreshing = false;
+    Token.clear(); currentUser = null;
+    showToast('Session expired. Please log in again.', 'error');
+    doLogout(); return null;
+  }
+  const data = await res.json().catch(() => ({ error: 'Invalid server response' }));
+  if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+  return data;
+}
+
+// ── Auth ──────────────────────────────────────────────────────
+function showAuthView(view) {
+  document.getElementById('view-login').classList.toggle('hidden-view', view !== 'login');
+  document.getElementById('view-register').classList.toggle('hidden-view', view !== 'register');
+}
+
+async function loginUser() {
+  const btn = document.getElementById('login-btn');
+  if (btn.disabled) return;
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.add('hidden');
+  if (!email || !password) { errEl.textContent = 'Email and password are required.'; errEl.classList.remove('hidden'); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Signing in…';
+  try {
+    const data = await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    if (!data) return;
+    Token.set(data.accessToken, data.refreshToken);
+    Token.setUser(data.user);
+    currentUser = data.user;
+    applyRoleAccess(data.user.role);
+    updateUserDisplay(data.user);
+    document.getElementById('auth-layout').classList.add('hidden-view');
+    document.getElementById('app-layout').classList.remove('hidden-view');
+    showToast(`Welcome back, ${data.user.name.split(' ')[0]}! 🎉`, 'success');
+    navigateTo('dashboard');
+    loadAllData();
+  } catch (err) {
+    errEl.textContent = err.message || 'Login failed.'; errEl.classList.remove('hidden');
+  } finally { btn.disabled = false; btn.innerHTML = 'Sign in to account'; }
+}
+
+async function registerUser() {
+  const btn = document.getElementById('reg-btn');
+  if (btn.disabled) return;
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const errEl = document.getElementById('reg-error');
+  errEl.classList.add('hidden');
+  if (!name || !email || !password) { errEl.textContent = 'All fields are required.'; errEl.classList.remove('hidden'); return; }
+  if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.classList.remove('hidden'); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Creating account…';
+  try {
+    await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+    showToast('Account created! Please sign in.', 'success');
+    ['reg-name','reg-email','reg-password'].forEach(id => document.getElementById(id).value = '');
+    showAuthView('login');
+    document.getElementById('login-email').value = email;
+  } catch (err) {
+    errEl.textContent = err.message || 'Registration failed.'; errEl.classList.remove('hidden');
+  } finally { btn.disabled = false; btn.innerHTML = 'Create account'; }
+}
+
+function doLogout() {
+  const rt = Token.getRefresh();
+  if (rt) apiFetch('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: rt }) }).catch(() => {});
+  Token.clear(); currentUser = null; expenses = [];
+  window._lastSummary = null; window._lastBudgets = null; window._lastReportData = null;
+  destroyAllCharts();
+  document.getElementById('app-layout').classList.add('hidden-view');
+  document.getElementById('auth-layout').classList.remove('hidden-view');
+  showAuthView('login');
+}
+function logout() { doLogout(); showToast('Logged out.', 'info'); }
+
+function updateUserDisplay(user) {
+  if (!user) return;
+  const words = (user.name || '').split(' ').filter(Boolean);
+  const initials = words.length >= 2 ? (words[0][0] + words[words.length-1][0]).toUpperCase() : (user.name||'?').slice(0,2).toUpperCase();
+  ['user-avatar','topbar-avatar'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = initials; });
+  const n = document.getElementById('user-name-display'); if (n) n.textContent = user.name || user.email;
+  const r = document.getElementById('user-role-display'); if (r) r.textContent = user.role === 'admin' ? 'System Administrator' : 'Member';
+}
+function applyRoleAccess(role) {
+  const m = document.getElementById('admin-menu'); if (m) m.classList.toggle('hidden', role !== 'admin');
+}
+async function checkSession() {
+  if (!Token.getAccess()) return false;
+  try {
+    const data = await apiFetch('/auth/me', {}, true);
+    if (data && data.user) { currentUser = data.user; Token.setUser(data.user); updateUserDisplay(data.user); applyRoleAccess(data.user.role); return true; }
+  } catch (_) { Token.clear(); }
+  return false;
+}
+
+// ── Navigation ────────────────────────────────────────────────
+const PAGE_TITLES = { dashboard:'Dashboard','add-expense':'Add Expense',expenses:'Expenses',budget:'Budget',reports:'Reports',currency:'Currency Converter',health:'Financial Health',admin:'Admin Dashboard' };
+function navigateTo(pageId) {
+  document.querySelectorAll('.page-view').forEach(p => p.classList.add('hidden-view'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  const page = document.getElementById(`page-${pageId}`); if (page) page.classList.remove('hidden-view');
+  const nl = document.querySelector(`[data-nav="${pageId}"]`); if (nl) nl.classList.add('active');
+  const t = document.getElementById('page-title'); if (t) t.textContent = PAGE_TITLES[pageId] || pageId;
+  document.getElementById('sidebar')?.classList.add('-translate-x-full');
+  if (pageId === 'budget') loadBudgets();
+  if (pageId === 'reports') loadReports();
+  if (pageId === 'health') loadHealth();
+  if (pageId === 'admin') loadAdminStats();
+  if (pageId === 'currency') loadCurrencyPage();
+}
+function toggleSidebar() { const sb = document.getElementById('sidebar'); sb.classList.toggle('-translate-x-full'); sb.classList.toggle('translate-x-0'); }
+
+// ── Theme ─────────────────────────────────────────────────────
+function toggleDark() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('smartspend_theme', isDark ? 'dark' : 'light');
+  document.getElementById('theme-icon').setAttribute('icon', isDark ? 'solar:sun-linear' : 'solar:moon-linear');
+  if (trendChartInstance) updateTrendChart(trendChartInstance._monthData || []);
+  if (donutChartInstance) updateDonutChart(donutChartInstance._catData || {}, donutChartInstance._totalData || 0);
+}
+
+// ── Toast ─────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const colors = { success:'bg-emerald-500', error:'bg-red-500', warning:'bg-amber-500', info:'bg-blue-500' };
+  const t = document.createElement('div');
+  t.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl text-white text-sm font-medium shadow-lg ${colors[type]||colors.info} animate-slide-up`;
+  t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 3500);
+}
+
+const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('en-IN', { month:'short',day:'numeric',year:'numeric' }) : '—';
+const escHtml = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ── Charts ────────────────────────────────────────────────────
+function destroyAllCharts() {
+  [trendChartInstance, donutChartInstance, reportChartInstance].forEach(c => { if (c) c.destroy(); });
+  trendChartInstance = donutChartInstance = reportChartInstance = null;
+}
+
+async function loadAllData() {
+  await loadExchangeRates(); // load rates first so fmt() is accurate
+  await Promise.all([loadExpenses(), loadDashboard()]);
+}
+
+// ── Dashboard ─────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const [summary, trend] = await Promise.all([
+      apiFetch(`/expenses/summary?month=${thisMonth}`),
+      apiFetch('/reports/monthly')
+    ]);
+    if (!summary || !trend) return;
+    window._lastSummary = summary;
+    updateDashboardStats(summary);
+    updateTrendChart(trend.data || []);
+    updateDonutChart(summary.byCategory || {}, summary.totalExpenses || 0);
+    updateBudgetAlert(summary);
+    updateInsights(summary);
+    const inc = document.getElementById('budget-income-input');
+    const lim = document.getElementById('budget-limit-input');
+    if (inc) inc.value = currentUser?.monthly_income || '';
+    if (lim) lim.value = currentUser?.monthly_budget || '';
+  } catch (err) { console.error('Dashboard error:', err.message); }
+}
+
+function updateDashboardStats(s) {
+  const income = (currentUser?.monthly_income) || s.monthlyIncome || 0;
+  document.getElementById('stat-income').textContent = fmt(income);
+  document.getElementById('stat-expenses').textContent = fmt(s.totalExpenses);
+  document.getElementById('stat-savings').textContent = fmt(s.totalSavings);
+  document.getElementById('stat-budget-remaining').textContent = fmt(Math.max(0, s.budgetRemaining));
+  const pct = s.budgetUsedPct || 0;
+  const bar = document.getElementById('stat-budget-bar');
+  bar.style.width = `${Math.min(pct,100)}%`;
+  bar.className = `h-1.5 rounded-full transition-all duration-700 ${pct>=100?'bg-red-500':pct>=80?'bg-amber-500':'bg-emerald-500'}`;
+}
+
+// ── Trend Chart (Bar) ─────────────────────────────────────────
+function updateTrendChart(months) {
+  if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
+  const canvas = document.getElementById('trend-chart-canvas');
+  if (!canvas) return;
+  const last6 = months.slice(-6);
+  const isDark = document.documentElement.classList.contains('dark');
+  const gridColor = isDark ? 'rgba(148,163,184,0.1)' : 'rgba(0,0,0,0.06)';
+  const labelColor = isDark ? '#94a3b8' : '#64748b';
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const sym = getSymbol(selectedCurrency);
+
+  trendChartInstance = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: last6.map(m => m.label || m.month),
+      datasets: [{
+        label: 'Spending',
+        data: last6.map(m => convertFromINR(m.total || 0)),
+        backgroundColor: last6.map(m => m.month === currentMonth ? '#10b981' : (isDark?'#334155':'#e2e8f0')),
+        hoverBackgroundColor: last6.map(m => m.month === currentMonth ? '#059669' : '#10b981'),
+        borderRadius: 6, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${sym}${Number(ctx.raw).toLocaleString('en-IN', {minimumFractionDigits:0,maximumFractionDigits:2})}` } }
+      },
+      scales: {
+        x: { grid:{display:false}, ticks:{color:labelColor,font:{size:11}} },
+        y: {
+          grid:{color:gridColor},
+          ticks: { color:labelColor, font:{size:11}, callback: v => {
+            const d = selectedCurrency === 'JPY' ? 0 : (v >= 1000 ? 1 : 2);
+            return `${sym}${v >= 1000 ? (v/1000).toFixed(1)+'k' : v}`;
+          }},
+          beginAtZero: true
+        }
+      }
+    }
+  });
+  trendChartInstance._monthData = months;
+  // Update subtitle
+  const tl = document.getElementById('trend-chart-currency-label');
+  if (tl) tl.textContent = `Last 6 months · Values in ${sym} ${selectedCurrency}`;
+}
+
+// ── Donut Chart ───────────────────────────────────────────────
+function updateDonutChart(byCategory, total) {
+  if (donutChartInstance) { donutChartInstance.destroy(); donutChartInstance = null; }
+  const canvas = document.getElementById('donut-chart-canvas'); if (!canvas) return;
+  const entries = Object.entries(byCategory).sort((a,b) => b[1]-a[1]);
+  const totalEl = document.getElementById('donut-total');
+  const legendEl = document.getElementById('donut-legends');
+  if (totalEl) totalEl.textContent = fmt(total);
+
+  const CAT_COLORS = { 'Housing':'#10b981','Food & Dining':'#3b82f6','Transportation':'#f59e0b','Utilities':'#6366f1','Entertainment':'#ec4899','Healthcare':'#ef4444','Other':'#94a3b8' };
+  if (!entries.length || total === 0) {
+    donutChartInstance = new Chart(canvas, { type:'doughnut', data:{labels:['No data'],datasets:[{data:[1],backgroundColor:['#e2e8f0'],borderWidth:0}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},cutout:'70%'} });
+    if (legendEl) legendEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">No expenses this month</p>';
+    return;
+  }
+
+  const sym = getSymbol(selectedCurrency);
+  donutChartInstance = new Chart(canvas, {
+    type:'doughnut',
+    data:{ labels:entries.map(([k])=>k), datasets:[{ data:entries.map(([,v]) => convertFromINR(v)), backgroundColor:entries.map(([k])=>CAT_COLORS[k]||'#94a3b8'), borderWidth:0, hoverOffset:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ` ${ctx.label}: ${sym}${Number(ctx.raw).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2})} (${((ctx.raw/convertFromINR(total))*100).toFixed(1)}%)` } } } }
+  });
+  donutChartInstance._catData = byCategory; donutChartInstance._totalData = total;
+  if (legendEl) legendEl.innerHTML = entries.map(([cat,amt]) =>
+    `<div class="flex items-center justify-between text-xs py-0.5">
+      <div class="flex items-center gap-2"><div class="w-2.5 h-2.5 rounded-full" style="background:${CAT_COLORS[cat]||'#94a3b8'}"></div><span class="text-slate-600 dark:text-slate-400">${cat}</span></div>
+      <span class="font-semibold text-slate-900 dark:text-white">${((amt/total)*100).toFixed(1)}%</span>
+    </div>`).join('');
+}
+
+function updateBudgetAlert(s) {
+  const alert = document.getElementById('budget-alert'), msg = document.getElementById('budget-alert-msg');
+  if (!alert || !msg) return;
+  const pct = s.budgetUsedPct || 0;
+  if (pct >= 100) { alert.className='rounded-xl p-4 flex items-center gap-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'; msg.textContent=`⚠️ You've exceeded your monthly budget! (${pct.toFixed(0)}% used)`; alert.classList.remove('hidden'); }
+  else if (pct >= 80) { alert.className='rounded-xl p-4 flex items-center gap-3 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'; msg.textContent=`⚠️ Budget Warning: You've used ${pct.toFixed(0)}% of your monthly budget.`; alert.classList.remove('hidden'); }
+  else alert.classList.add('hidden');
+}
+
+function updateInsights(s) {
+  const list = document.getElementById('insights-list'); if (!list) return;
+  if (!s.totalExpenses) { list.innerHTML='<p class="text-xs text-slate-400">Add expenses to see personalized insights.</p>'; return; }
+  const insights = [];
+  if ((s.vsLastMonth||0) > 10) insights.push({t:'warning',m:`Spending is up ${s.vsLastMonth}% vs last month.`});
+  else if ((s.vsLastMonth||0) < -10) insights.push({t:'success',m:`Great! Spending is down ${Math.abs(s.vsLastMonth)}% vs last month.`});
+  const topCat = Object.entries(s.byCategory||{}).sort((a,b)=>b[1]-a[1])[0];
+  if (topCat) insights.push({t:'info',m:`Top category: ${topCat[0]} (${fmt(topCat[1])})`});
+  if (s.monthlyBudget > 0 && s.budgetUsedPct >= 80) insights.push({t:'danger',m:`Budget at ${s.budgetUsedPct.toFixed(0)}% — watch spending.`});
+  if (!insights.length) insights.push({t:'success',m:'Your finances look healthy this month!'});
+  const colors = {success:'text-emerald-600 dark:text-emerald-400',warning:'text-amber-600 dark:text-amber-400',danger:'text-red-600 dark:text-red-400',info:'text-blue-600 dark:text-blue-400'};
+  list.innerHTML = insights.map(i=>`<div class="flex items-start gap-2 text-sm ${colors[i.t]||colors.info}"><span class="mt-0.5">•</span><span>${i.m}</span></div>`).join('');
+}
+
+async function saveSettings() {
+  const btn = document.getElementById('save-settings-btn'); if (btn.disabled) return;
+  const income = parseFloat(document.getElementById('budget-income-input').value) || 0;
+  const budget = parseFloat(document.getElementById('budget-limit-input').value) || 0;
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const data = await apiFetch('/auth/settings', { method:'PATCH', body:JSON.stringify({ monthly_income:income, monthly_budget:budget }) });
+    if (!data) return;
+    currentUser = { ...currentUser, monthly_income:income, monthly_budget:budget };
+    Token.setUser(currentUser);
+    showToast('Settings saved!', 'success');
+    loadDashboard();
+  } catch (err) { showToast(err.message||'Save failed.','error'); }
+  finally { btn.disabled=false; btn.textContent='Save Settings'; }
+}
+
+// ── Expenses ──────────────────────────────────────────────────
+async function loadExpenses() {
+  try {
+    const data = await apiFetch('/expenses?limit=500&sort=date&order=desc'); if (!data) return;
+    expenses = data.data || [];
+    renderExpensesTable();
+  } catch (err) { console.error('Load expenses error:', err.message); }
+}
+
+const CAT_COLORS_MAP = { 'Housing':'#10b981','Food & Dining':'#3b82f6','Transportation':'#f59e0b','Utilities':'#6366f1','Entertainment':'#ec4899','Healthcare':'#ef4444','Other':'#94a3b8' };
+const CAT_CLASSES = { 'Housing':'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400','Food & Dining':'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400','Transportation':'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400','Utilities':'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400','Entertainment':'bg-pink-50 text-pink-700 dark:bg-pink-500/10 dark:text-pink-400','Healthcare':'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400','Other':'bg-slate-50 text-slate-700 dark:bg-slate-500/10 dark:text-slate-400' };
+
+function renderExpensesTable(list) {
+  const rows = list !== undefined ? list : expenses;
+  const tbody = document.getElementById('expenses-tbody'); if (!tbody) return;
+  // Update header
+  const eh = document.getElementById('expenses-amount-header');
+  if (eh) eh.textContent = `Amount (${getSymbol(selectedCurrency)} ${selectedCurrency})`;
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-12 text-center text-slate-400 text-sm">No expenses found. <a href="#" onclick="navigateTo('add-expense')" class="text-emerald-500 hover:underline">Add one →</a></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(e => `
+    <tr class="row-enter hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+      <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">${fmtDate(e.date)}</td>
+      <td class="px-4 py-3">
+        <p class="text-sm font-medium text-slate-900 dark:text-white">${escHtml(e.description)}</p>
+        ${e.notes?`<p class="text-xs text-slate-400 mt-0.5 truncate max-w-xs">${escHtml(e.notes)}</p>`:''}
+      </td>
+      <td class="px-4 py-3"><span class="inline-flex px-2 py-0.5 rounded-md text-xs font-medium ${CAT_CLASSES[e.category]||CAT_CLASSES['Other']}">${escHtml(e.category)}</span></td>
+      <td class="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white text-right whitespace-nowrap">${fmt(e.amount)}</td>
+      <td class="px-4 py-3 text-center whitespace-nowrap">
+        <button onclick="editExpense('${e.id}')" class="text-slate-400 hover:text-emerald-500 transition-colors mr-2" title="Edit"><iconify-icon icon="solar:pen-linear" width="16"></iconify-icon></button>
+        <button onclick="openDeleteModal('${e.id}')" class="text-slate-400 hover:text-red-500 transition-colors" title="Delete"><iconify-icon icon="solar:trash-bin-trash-linear" width="16"></iconify-icon></button>
+      </td>
+    </tr>`).join('');
+}
+
+function filterExpenses() {
+  const q = (document.getElementById('search-input')?.value||'').toLowerCase();
+  const cat = document.getElementById('filter-category')?.value||'';
+  const mo = document.getElementById('filter-month')?.value||'';
+  renderExpensesTable(expenses.filter(e =>
+    (!q || e.description.toLowerCase().includes(q) || e.category.toLowerCase().includes(q)) &&
+    (!cat || e.category === cat) && (!mo || e.date.startsWith(mo))
+  ));
+}
+
+function resetForm() {
+  currentEditId = null;
+  ['expense-amount','expense-category','expense-description','expense-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('expense-date').valueAsDate = new Date();
+  document.getElementById('expense-form-title').textContent = 'Add New Expense';
+  document.getElementById('save-expense-btn').textContent = 'Save Expense';
+}
+
+function editExpense(id) {
+  const e = expenses.find(x => x.id === id); if (!e) return;
+  currentEditId = id;
+  document.getElementById('expense-amount').value = e.amount;
+  document.getElementById('expense-category').value = e.category;
+  document.getElementById('expense-description').value = e.description;
+  document.getElementById('expense-notes').value = e.notes || '';
+  document.getElementById('expense-date').value = e.date;
+  document.getElementById('expense-form-title').textContent = 'Edit Expense';
+  document.getElementById('save-expense-btn').textContent = 'Update Expense';
+  navigateTo('add-expense');
+}
+
+async function saveExpense() {
+  const btn = document.getElementById('save-expense-btn'); if (btn.disabled) return;
+  const amount = parseFloat(document.getElementById('expense-amount').value);
+  const category = document.getElementById('expense-category').value;
+  const description = document.getElementById('expense-description').value.trim();
+  const date = document.getElementById('expense-date').value;
+  const notes = document.getElementById('expense-notes').value.trim();
+  if (!amount || !category || !description || !date) { showToast('Please fill all required fields.','error'); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Saving…';
+  try {
+    const payload = { amount, category, description, date, notes: notes || undefined };
+    if (currentEditId) {
+      await apiFetch(`/expenses/${currentEditId}`, { method:'PUT', body:JSON.stringify(payload) });
+      showToast('Expense updated!','success');
+    } else {
+      await apiFetch('/expenses', { method:'POST', body:JSON.stringify(payload) });
+      showToast('Expense added!','success');
+    }
+    resetForm(); navigateTo('expenses');
+    await Promise.all([loadExpenses(), loadDashboard()]);
+  } catch (err) { showToast(err.message||'Save failed.','error'); }
+  finally { btn.disabled=false; btn.textContent = currentEditId?'Update Expense':'Save Expense'; }
+}
+
+function openDeleteModal(id) { pendingDeleteId=id; document.getElementById('delete-modal').classList.remove('hidden'); }
+function closeDeleteModal() { pendingDeleteId=null; document.getElementById('delete-modal').classList.add('hidden'); }
+async function confirmDelete() {
+  if (!pendingDeleteId) return; closeDeleteModal();
+  try {
+    await apiFetch(`/expenses/${pendingDeleteId}`,{method:'DELETE'});
+    showToast('Expense deleted.','success');
+    await Promise.all([loadExpenses(), loadDashboard()]);
+  } catch (err) { showToast(err.message||'Delete failed.','error'); }
+}
+
+// ── Budgets ───────────────────────────────────────────────────
+async function loadBudgets() {
+  const month = document.getElementById('budget-month-filter')?.value || new Date().toISOString().slice(0,7);
+  const container = document.getElementById('budget-cards'); if (!container) return;
+  container.innerHTML = '<div class="col-span-full text-center py-8 text-slate-400 text-sm">Loading…</div>';
+  try {
+    const data = await apiFetch(`/budgets?month=${month}`); if (!data) return;
+    window._lastBudgets = data.data || [];
+    renderBudgetCards(window._lastBudgets);
+  } catch (err) {
+    container.innerHTML = '<div class="col-span-full text-center py-8 text-red-400 text-sm">Failed to load budgets.</div>';
+  }
+}
+
+function renderBudgetCards(budgets) {
+  const container = document.getElementById('budget-cards'); if (!container) return;
+  if (!budgets.length) { container.innerHTML='<div class="col-span-full text-center py-12 text-slate-400 text-sm">No budgets set. Click "Set Budget" to add one.</div>'; return; }
+  container.innerHTML = budgets.map(b => {
+    const pct = Math.min(b.used_pct||0,100);
+    const barColor = pct>=100?'bg-red-500':pct>=80?'bg-amber-500':'bg-emerald-500';
+    return `<div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-medium ${CAT_CLASSES[b.category]||CAT_CLASSES['Other']}">${escHtml(b.category)}</span>
+        <button onclick="deleteBudget('${b.id}')" class="text-slate-300 hover:text-red-400 transition-colors"><iconify-icon icon="solar:trash-bin-trash-linear" width="14"></iconify-icon></button>
+      </div>
+      <div class="flex justify-between text-sm mb-2">
+        <span class="text-slate-500 dark:text-slate-400">Spent</span>
+        <span class="font-semibold text-slate-900 dark:text-white">${fmt(b.spent)} / ${fmt(b.limit_amount)}</span>
+      </div>
+      <div class="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+        <div class="h-2 rounded-full transition-all duration-700 ${barColor}" style="width:${pct}%"></div>
+      </div>
+      <p class="text-xs text-slate-400 mt-1.5">${pct.toFixed(0)}% used · ${fmt(Math.max(0,b.limit_amount-b.spent))} remaining</p>
+    </div>`;
+  }).join('');
+}
+
+function showBudgetForm() { document.getElementById('budget-form-panel').classList.toggle('hidden'); }
+
+async function saveBudget() {
+  const btn = document.getElementById('save-budget-btn'); if (btn.disabled) return;
+  const category = document.getElementById('budget-cat').value;
+  const limit_amount = parseFloat(document.getElementById('budget-limit').value);
+  const month = document.getElementById('budget-month-filter')?.value || new Date().toISOString().slice(0,7);
+  if (!category || !limit_amount) { showToast('Select a category and enter a limit.','error'); return; }
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    await apiFetch('/budgets',{method:'POST',body:JSON.stringify({category,limit_amount,month})});
+    showToast('Budget saved!','success');
+    document.getElementById('budget-cat').value=''; document.getElementById('budget-limit').value='';
+    document.getElementById('budget-form-panel').classList.add('hidden');
+    loadBudgets();
+  } catch (err) { showToast(err.message||'Save failed.','error'); }
+  finally { btn.disabled=false; btn.textContent='Save Budget'; }
+}
+
+async function deleteBudget(id) {
+  try { await apiFetch(`/budgets/${id}`,{method:'DELETE'}); showToast('Budget removed.','info'); loadBudgets(); }
+  catch (err) { showToast(err.message||'Delete failed.','error'); }
+}
+
+// ── Reports ───────────────────────────────────────────────────
+async function loadReports() {
+  const month = document.getElementById('report-month-filter')?.value || new Date().toISOString().slice(0,7);
+  const monthLabel = new Date(month+'-01').toLocaleString('default',{month:'long',year:'numeric'});
+  const lbl = document.getElementById('rpt-month-label'); if (lbl) lbl.textContent = monthLabel;
+  try {
+    const data = await apiFetch(`/reports/overview?month=${month}`); if (!data) return;
+    window._lastReportData = data;
+    document.getElementById('rpt-total').textContent = fmt(data.totalExpenses);
+    document.getElementById('rpt-avg').textContent = fmt(data.avgPerTransaction);
+    document.getElementById('rpt-count').textContent = data.transactionCount || 0;
+    const vs = data.vsLastMonth || 0;
+    const vsEl = document.getElementById('rpt-vs');
+    vsEl.textContent = vs > 0 ? `+${vs}%` : `${vs}%`;
+    vsEl.className = `text-xl font-bold ${vs>0?'text-red-500':vs<0?'text-emerald-500':'text-slate-900 dark:text-white'}`;
+    renderReportChart(data.daily || []);
+    renderCategoryTable(data.byCategory || [], data.totalExpenses || 0);
+  } catch (err) { showToast(err.message||'Failed to load report.','error'); }
+}
+
+function renderReportChart(daily) {
+  if (reportChartInstance) { reportChartInstance.destroy(); reportChartInstance = null; }
+  const canvas = document.getElementById('report-chart-canvas'); if (!canvas) return;
+  const isDark = document.documentElement.classList.contains('dark');
+  const sym = getSymbol(selectedCurrency);
+  reportChartInstance = new Chart(canvas, {
+    type:'line',
+    data:{
+      labels: daily.map(d => new Date(d.date+'T00:00:00').toLocaleDateString('en-IN',{month:'short',day:'numeric'})),
+      datasets:[{
+        label:'Daily Spending',
+        data: daily.map(d => convertFromINR(d.total||0)),
+        borderColor:'#10b981', backgroundColor:'rgba(16,185,129,0.08)',
+        borderWidth:2, fill:true, tension:0.4,
+        pointBackgroundColor:'#10b981', pointRadius:3, pointHoverRadius:6
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${sym}${Number(ctx.raw).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2})}`}} },
+      scales:{
+        x:{grid:{display:false},ticks:{color:isDark?'#94a3b8':'#64748b',font:{size:10},maxTicksLimit:10}},
+        y:{grid:{color:isDark?'rgba(148,163,184,0.1)':'rgba(0,0,0,0.06)'},ticks:{color:isDark?'#94a3b8':'#64748b',font:{size:11},callback:v=>`${sym}${v>=1000?(v/1000).toFixed(1)+'k':v}`},beginAtZero:true}
+      }
+    }
+  });
+}
+
+function renderCategoryTable(categories, total) {
+  const el = document.getElementById('report-category-table'); if (!el) return;
+  if (!categories.length) { el.innerHTML='<p class="text-sm text-slate-400">No data for this month.</p>'; return; }
+  el.innerHTML = categories.map(c => `
+    <div class="flex items-center gap-3 py-2">
+      <div class="w-3 h-3 rounded-full flex-shrink-0" style="background:${CAT_COLORS_MAP[c.category]||'#94a3b8'}"></div>
+      <div class="flex-1 min-w-0">
+        <div class="flex justify-between text-sm mb-1">
+          <span class="font-medium text-slate-900 dark:text-white">${escHtml(c.category)}</span>
+          <span class="text-slate-500 dark:text-slate-400">${fmt(c.total)} <span class="text-xs">(${c.pct}%)</span></span>
+        </div>
+        <div class="h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+          <div class="h-1.5 rounded-full" style="width:${c.pct}%;background:${CAT_COLORS_MAP[c.category]||'#94a3b8'}"></div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Report Download ───────────────────────────────────────────
+async function downloadReport(format) {
+  const month = document.getElementById('report-month-filter')?.value || new Date().toISOString().slice(0,7);
+  const btn = document.getElementById(`download-${format}-btn`); if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  const origHTML = btn.innerHTML;
+  btn.innerHTML = `<span class="spinner"></span>Preparing…`;
+
+  try {
+    // Use fetch directly so we can handle blob response
+    const token = Token.getAccess();
+    const url = `${API_BASE}/reports/download?month=${month}&format=${format}`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Download failed (${res.status})`);
+    }
+
+    // Get filename from Content-Disposition header
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `SmartSpend_Report_${month}.${format}`;
+
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(objectUrl);
+
+    showToast(`${format.toUpperCase()} downloaded: ${filename}`, 'success');
+  } catch (err) {
+    showToast(err.message || 'Download failed.', 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = origHTML;
+  }
+}
+
+// ── Financial Health ──────────────────────────────────────────
+// ── Financial Health ──────────────────────────────────────────
+async function loadHealth() {
+  try {
+    const data = await apiFetch('/reports/health'); 
+    if (!data) return;
+
+    document.getElementById('health-score').textContent = data.score;
+    document.getElementById('health-grade').textContent = data.grade;
+
+    const gc = {
+      Excellent:'text-emerald-500',
+      Good:'text-blue-500',
+      Fair:'text-amber-500',
+      Poor:'text-orange-500',
+      Critical:'text-red-500'
+    };
+
+    document.getElementById('health-score').className =
+      `text-6xl font-bold ${gc[data.grade] || 'text-slate-900 dark:text-white'}`;
+
+    document.getElementById('health-components').innerHTML =
+      Object.entries(data.components || {}).map(([,c]) =>
+        `<div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+          
+          <p class="text-xs text-slate-400 mb-1">${c.label}</p>
+
+          <!-- ✅ ONLY THIS LINE CHANGED -->
+          <p class="text-2xl font-bold text-slate-900 dark:text-white">
+            ${c.score}% <span class="text-sm text-slate-400">(${c.score}/${c.weight})</span>
+          </p>
+
+          <div class="h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full mt-2 overflow-hidden">
+            <div class="h-1.5 rounded-full bg-emerald-500"
+              style="width:${(c.score/c.weight*100).toFixed(0)}%">
+            </div>
+          </div>
+
+        </div>`
+      ).join('');
+
+    document.getElementById('health-tips').innerHTML =
+      (data.tips || []).map(t => `<li>${escHtml(t)}</li>`).join('');
+
+  } catch (err) {
+    showToast(err.message || 'Failed to load health.', 'error');
+  }
+}
+
+// ── Currency Page ─────────────────────────────────────────────
+let currencyRatesCache = null;
+async function loadCurrencyPage() {
+  // Pre-fill from/to with current selected
+  document.getElementById('cc-from').value = selectedCurrency !== 'INR' ? selectedCurrency : 'INR';
+  try {
+    const data = await apiFetch('/currency/rates');
+    if (data) {
+      currencyRatesCache = data;
+      renderRatesTable(data);
+    }
+  } catch (_) {}
+}
+
+function renderRatesTable(data) {
+  const el = document.getElementById('rates-table'); if (!el) return;
+  const inrPerUSD = data.rates?.INR || 83.12;
+  const pairs = [
+    ['USD','$'], ['EUR','€'], ['GBP','£'], ['JPY','¥'], ['CAD','C$'], ['AUD','A$'], ['SGD','S$'], ['CHF','Fr'], ['CNY','¥']
+  ];
+  el.innerHTML = pairs.map(([code, sym]) => {
+    const usdRate = data.rates?.[code] || 1;
+    const inrToCode = usdRate / inrPerUSD;
+    return `<div class="flex justify-between items-center py-1.5 border-b border-gray-50 dark:border-slate-700 last:border-0">
+      <span class="text-slate-600 dark:text-slate-300">${CURRENCIES[code]?.flag || ''} ${code} (${sym})</span>
+      <span class="font-semibold text-slate-900 dark:text-white">1 ₹ = ${sym}${inrToCode.toFixed(4)}</span>
+    </div>`;
+  }).join('') + `<p class="text-xs text-slate-400 mt-2">Source: ${data.source || 'static'} · ${data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString() : ''}</p>`;
+}
+
+async function convertCurrency() {
+  const btn = document.getElementById('cc-btn'); if (btn.disabled) return;
+  const amount = parseFloat(document.getElementById('cc-amount').value);
+  const from = document.getElementById('cc-from').value;
+  const to = document.getElementById('cc-to').value;
+  if (!amount) { showToast('Enter an amount.','error'); return; }
+  btn.disabled=true; btn.textContent='Converting…';
+  try {
+    const data = await apiFetch(`/currency/convert?amount=${amount}&from=${from}&to=${to}`); if (!data) return;
+    const toSym = getSymbol(to) || to;
+    document.getElementById('cc-result-value').textContent = `${toSym}${Number(data.converted).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:4})}`;
+    document.getElementById('cc-result-rate').textContent = `1 ${from} = ${toSym}${data.rate} ${to}`;
+    document.getElementById('cc-result').classList.remove('hidden');
+  } catch (err) { showToast(err.message||'Conversion failed.','error'); }
+  finally { btn.disabled=false; btn.textContent='Convert'; }
+}
+
+// ── Admin ─────────────────────────────────────────────────────
+async function loadAdminStats() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  try {
+    const data = await apiFetch('/admin/stats'); if (!data) return;
+    document.getElementById('admin-users').textContent = data.totalUsers;
+    document.getElementById('admin-expenses').textContent = data.totalExpenses;
+    document.getElementById('admin-amount').textContent = fmt(data.totalAmount);
+    document.getElementById('admin-uptime').textContent = Math.round(data.uptime);
+  } catch (err) { console.error('Admin stats error:', err.message); }
+}
+async function toggleMaintenance() {
+  try {
+    const settings = await apiFetch('/admin/settings');
+    const current = settings?.settings?.maintenance_mode === 'true';
+    await apiFetch('/admin/settings',{method:'PATCH',body:JSON.stringify({maintenance_mode:String(!current)})});
+    showToast(`Maintenance mode ${!current?'enabled':'disabled'}.`,'info');
+  } catch (err) { showToast(err.message||'Failed.','error'); }
+}
+
+// ── App Init ──────────────────────────────────────────────────
+async function initApp() {
+  // Theme
+  const theme = localStorage.getItem('smartspend_theme');
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark');
+    document.getElementById('theme-icon')?.setAttribute('icon','solar:sun-linear');
+  }
+
+  // Apply saved currency
+  const savedCurrency = localStorage.getItem('ss_currency') || 'INR';
+  selectedCurrency = savedCurrency;
+  document.getElementById('currency-btn-symbol').textContent = getSymbol(savedCurrency);
+  document.getElementById('currency-btn-code').textContent = savedCurrency;
+
+  // Set defaults
+  const dateInput = document.getElementById('expense-date');
+  if (dateInput) dateInput.valueAsDate = new Date();
+  const thisMonth = new Date().toISOString().slice(0,7);
+  ['budget-month-filter','report-month-filter'].forEach(id => { const el=document.getElementById(id); if(el) el.value=thisMonth; });
+
+  // Restore session
+  const restored = await checkSession();
+  if (restored) {
+    document.getElementById('auth-layout').classList.add('hidden-view');
+    document.getElementById('app-layout').classList.remove('hidden-view');
+    navigateTo('dashboard');
+    loadAllData();
+  } else {
+    document.getElementById('auth-layout').classList.remove('hidden-view');
+    showAuthView('login');
+  }
+}
+
+initApp();
+</script>
+</body>
+</html>
